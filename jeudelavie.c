@@ -62,6 +62,8 @@ int main(int argc,char**argv)
   //gettimeofday( &tv_init, NULL);
 
   if(rank == 0){
+
+    printf("size  : %d",size);
     init(t1);
     send_count = malloc(sizeof(int)*size);
     displacement = malloc(sizeof(int)*size);
@@ -80,9 +82,10 @@ int main(int argc,char**argv)
 
   }
 
-  MPI_Scatterv(t1,send_count,displacement,MPI_CHAR,&t1[1][0],local_rows_num,MPI_CHAR,0,MPI_COMM_WORLD);
-
+ // MPI_Scatterv(t1,send_count,displacement,MPI_CHAR,&t1,local_rows_num,MPI_CHAR,0,MPI_COMM_WORLD);
+  MPI_Scatter(t1,local_rows_num*LM,MPI_CHAR,&t1[1][0],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
   char file[20];
+
   sprintf(file,"file.%d",rank);
   FILE *f = fopen(file, "w");
 
@@ -94,6 +97,7 @@ int main(int argc,char**argv)
       fprintf(f, "\n");
     }
   fclose(f);
+
   free(send_count);
   free(displacement);
 /*
