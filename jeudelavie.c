@@ -13,8 +13,8 @@
 #endif
 
 // hauteur et largeur de la matrice
-#define HM 1200
-#define LM 800
+#define HM 12
+#define LM 8
 
 // nombre total d'itérations
 #define ITER 10001
@@ -39,7 +39,7 @@ Tab t1, t2;
 Tab tsauvegarde[1+ITER/SAUV];
 
 
-int size,rank;
+int size,rank,local_rows_num;
 int main(int argc,char**argv)
 {
  // struct timeval tv_init, tv_beg, tv_end, tv_save;
@@ -48,9 +48,55 @@ int main(int argc,char**argv)
   MPI_Comm_size(MPI_COMM_WORLD,&size);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
+  int next_n = (rank == size-1)?0:rank+1;
+  int previous_n = (rank == 0)?size-1:rank-1;
+  int* send_count = NULL;
+  int *displacement = NULL;
+  int reminder = HM%size;
+  local_rows_num = HM/size;
+  if(rank < reminder)
+    local_rows_num += 1; //3,3,,3,2
+
+
 
   //gettimeofday( &tv_init, NULL);
-  init(t1);
+
+  if(rank == 0){
+    init(t1);
+    send_count = malloc(sizeof(int)*size);
+    displacement = malloc(sizeof(int)*size);
+    int sum = 0;
+    for (int i = 0; i < size ; ++i) {
+      int tmp = (HM/local_rows_num);
+      send_count[i] = (i != size-1) ? tmp :tmp+HM%size;
+        if(reminder >0){
+          send_count[i]++;
+          reminder--;
+        }
+      send_count[i] *=LM;
+      displacement[i] = sum;
+      sum += send_count[i];
+    }
+
+  }
+
+  MPI_Scatterv(t1,send_count,displacement,MPI_CHAR,&t1[1][0],local_rows_num,MPI_CHAR,0,MPI_COMM_WORLD);
+
+  char file[20];
+  sprintf(file,"file.%d",rank);
+  FILE *f = fopen(file, "w");
+
+    fprintf(f, "------------------ sauvegarde %d ------------------\n", rank);
+    for(int x=1 ; x<=local_rows_num ; x++)
+    {
+      for(int y=0 ; y<LM ; y++)
+        fprintf(f, t1[x][y]?"*":" ");
+      fprintf(f, "\n");
+    }
+  fclose(f);
+  free(send_count);
+  free(displacement);
+/*
 
   //gettimeofday( &tv_beg, NULL);
   for(int i=0 ; i<ITER ; i++)
@@ -88,13 +134,18 @@ int main(int argc,char**argv)
   //printf("init : %lf s,", DIFFTEMPS(tv_init, tv_beg));
   //printf(" calcul : %lf s,", DIFFTEMPS(tv_beg, tv_end));
   //printf(" sauvegarde : %lf s\n", DIFFTEMPS(tv_end, tv_save));
+
+  */
+
+
   MPI_Finalize();
   return( 0 );
 }
 
 void init(Tab t)
 {
-  srand(time(0));
+
+ // srand(time(0));
   for(int i=0 ; i<HM ; i++)
     for(int j=0 ; j<LM ; j++ )
     {
@@ -103,6 +154,7 @@ void init(Tab t)
       // t[i][j] = (i==0||j==0||i==h-1||j==l-1)?0:1;
       t[i][j] = 0;
     }
+    /*
   t[10][10] = 1;
   t[10][11] = 1;
   t[10][12] = 1;
@@ -116,6 +168,21 @@ void init(Tab t)
   t[56][50] = 1;
   t[56][51] = 1;
   t[56][52] = 1;
+   */
+  t[0][0] = 1;
+  t[1][1] = 1;
+  t[2][2] = 1;
+  t[3][3] = 1;
+  t[4][4] = 1;
+  t[5][5] = 1;
+  t[6][6] = 1;
+  t[7][0] = 1;
+  t[8][1] = 1;
+  t[9][2] = 1;
+  t[10][3] = 1;
+  t[11][7] = 1;
+
+
 }
 
 int nbvois(Tab t, int i, int j)
