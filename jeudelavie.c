@@ -6,6 +6,12 @@
 #include <time.h>
 #include <sys/time.h>
 
+#ifdef __linux__
+#include <openmpi-x86_64/mpi.h>
+#elif  __APPLE__
+#include <mpi.h>
+#endif
+
 // hauteur et largeur de la matrice
 #define HM 1200
 #define LM 800
@@ -32,14 +38,21 @@ void calcnouv(Tab, Tab);
 Tab t1, t2;
 Tab tsauvegarde[1+ITER/SAUV];
 
-int main()
-{
-  struct timeval tv_init, tv_beg, tv_end, tv_save;
 
-  gettimeofday( &tv_init, NULL);
+int size,rank;
+int main(int argc,char**argv)
+{
+ // struct timeval tv_init, tv_beg, tv_end, tv_save;
+
+  MPI_Init(&argc,&argv);
+  MPI_Comm_size(MPI_COMM_WORLD,&size);
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
+
+  //gettimeofday( &tv_init, NULL);
   init(t1);
 
-  gettimeofday( &tv_beg, NULL);
+  //gettimeofday( &tv_beg, NULL);
   for(int i=0 ; i<ITER ; i++)
   {
     if( i%2 == 0)
@@ -56,7 +69,7 @@ int main()
           tsauvegarde[i/SAUV][x][y] = t1[x][y];
     }
   }
-  gettimeofday( &tv_end, NULL);
+  //gettimeofday( &tv_end, NULL);
 
   FILE *f = fopen("jdlv.out", "w");
   for(int i=0 ; i<ITER ; i+=SAUV)
@@ -70,12 +83,12 @@ int main()
     }
   }
   fclose(f);
-  gettimeofday( &tv_save, NULL);
+  //gettimeofday( &tv_save, NULL);
 
-  printf("init : %lf s,", DIFFTEMPS(tv_init, tv_beg));
-  printf(" calcul : %lf s,", DIFFTEMPS(tv_beg, tv_end));
-  printf(" sauvegarde : %lf s\n", DIFFTEMPS(tv_end, tv_save));
-
+  //printf("init : %lf s,", DIFFTEMPS(tv_init, tv_beg));
+  //printf(" calcul : %lf s,", DIFFTEMPS(tv_beg, tv_end));
+  //printf(" sauvegarde : %lf s\n", DIFFTEMPS(tv_end, tv_save));
+  MPI_Finalize();
   return( 0 );
 }
 
@@ -141,7 +154,7 @@ int nbvois(Tab t, int i, int j)
 
 void calcnouv(Tab t, Tab n)
 {
-  #pragma omp parallel for
+#pragma omp parallel for
   for(int i=0 ; i<HM ; i++)
     for(int j=0 ; j<LM ; j++)
     {
