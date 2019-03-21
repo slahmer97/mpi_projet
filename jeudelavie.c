@@ -38,7 +38,7 @@ void calcnouv(Tab, Tab);
 Tab t1, t2;
 Tab tsauvegarde[1+ITER/SAUV];
 
-
+int next = 0;
 int size,rank,local_rows_num;
 int main(int argc,char**argv)
 {
@@ -64,8 +64,10 @@ int main(int argc,char**argv)
 
   if(rank == 0){
 
-    printf("size  : %d",size);
+    printf("size  : %d\n",size);
     init(t2);
+      printf("Next : %d\n",next_n);
+      printf("Previous : %d\n",previous_n);
     /*
     send_count = malloc(sizeof(int)*size);
     displacement = malloc(sizeof(int)*size);
@@ -84,27 +86,57 @@ int main(int argc,char**argv)
 */
   }
 
+
  // MPI_Scatterv(t1,send_count,displacement,MPI_CHAR,&t1,local_rows_num,MPI_CHAR,0,MPI_COMM_WORLD);
   MPI_Scatter(t2,local_rows_num*LM,MPI_CHAR,&t1[1],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
 
+  if(rank != 0)
     MPI_Isend(&t1[1],LM,MPI_CHAR,previous_n,0,MPI_COMM_WORLD,&mpi_send_req1);
+  if(rank != size-1)
     MPI_Isend(&t1[local_rows_num],LM,MPI_CHAR,next_n,0,MPI_COMM_WORLD,&mpi_send_req2);
+  if(rank != 0)
     MPI_Irecv(&t1[0],LM,MPI_CHAR,previous_n,0,MPI_COMM_WORLD,&mpi_recv_req1);
+  if(rank != size-1)
     MPI_Irecv(&t1[local_rows_num+1],LM,MPI_CHAR,next_n,0,MPI_COMM_WORLD,&mpi_recv_req2);
 
 
-
-    MPI_Wait(&mpi_send_req1,MPI_STATUS_IGNORE);
+  if(rank != 0)
+     MPI_Wait(&mpi_send_req1,MPI_STATUS_IGNORE);
+  if(rank != size-1)
     MPI_Wait(&mpi_send_req2,MPI_STATUS_IGNORE);
+  if(rank != 0)
     MPI_Wait(&mpi_recv_req1,MPI_STATUS_IGNORE);
-    MPI_Wait(&mpi_recv_req2,MPI_STATUS_IGNORE);
+  if(rank != size-1)
+     MPI_Wait(&mpi_recv_req2,MPI_STATUS_IGNORE);
 
 
 
 
 
 
-  char file[20];
+  if(rank == 0)
+     MPI_Gather(&t1[1],local_rows_num*LM,MPI_CHAR,&tsauvegarde[next++],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+  else
+      MPI_Gather(&t1[1],local_rows_num*LM,MPI_CHAR,NULL,local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+
+  if(rank == 0){
+    FILE *f = fopen("jdlv.out", "w");
+
+        fprintf(f, "------------------ sauvegarde %d ------------------\n", 0);
+        for(int x=0 ; x<HM ; x++)
+        {
+            for(int y=0 ; y<LM ; y++)
+                fprintf(f, tsauvegarde[0][x][y]?"*":"-");
+            fprintf(f, "\n");
+        }
+
+    fclose(f);
+
+  }
+
+
+  /*
+    char file[20];
   sprintf(file,"file.%d",rank);
   FILE *f = fopen(file, "w");
   fprintf(f, "------------------ sauvegarde %d ------------------\n", rank);
@@ -123,6 +155,8 @@ int main(int argc,char**argv)
   for(int x=0 ; x<LM ; x++)
     fprintf(f, t1[local_rows_num+1][x]?"*":"-");
   fclose(f);
+
+  */
 
 
 
