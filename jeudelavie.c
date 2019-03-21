@@ -47,7 +47,8 @@ int main(int argc,char**argv)
   MPI_Init(&argc,&argv);
   MPI_Comm_size(MPI_COMM_WORLD,&size);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-
+  MPI_Status mpi_status;
+  MPI_Request mpi_send_req1,mpi_send_req2,mpi_recv_req1,mpi_recv_req2;
   int next_n = (rank == size-1)?0:rank+1;
   int previous_n = (rank == 0)?size-1:rank-1;
   int* send_count = NULL;
@@ -64,7 +65,8 @@ int main(int argc,char**argv)
   if(rank == 0){
 
     printf("size  : %d",size);
-    init(t1);
+    init(t2);
+    /*
     send_count = malloc(sizeof(int)*size);
     displacement = malloc(sizeof(int)*size);
     int sum = 0;
@@ -79,29 +81,52 @@ int main(int argc,char**argv)
       displacement[i] = sum;
       sum += send_count[i];
     }
-
+*/
   }
 
  // MPI_Scatterv(t1,send_count,displacement,MPI_CHAR,&t1,local_rows_num,MPI_CHAR,0,MPI_COMM_WORLD);
-  MPI_Scatter(t1,local_rows_num*LM,MPI_CHAR,&t1[1][0],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
-  char file[20];
+  MPI_Scatter(t2,local_rows_num*LM,MPI_CHAR,&t1[1],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
 
+    MPI_Isend(&t1[1],LM,MPI_CHAR,previous_n,0,MPI_COMM_WORLD,&mpi_send_req1);
+    MPI_Isend(&t1[local_rows_num],LM,MPI_CHAR,next_n,0,MPI_COMM_WORLD,&mpi_send_req2);
+    MPI_Irecv(&t1[0],LM,MPI_CHAR,previous_n,0,MPI_COMM_WORLD,&mpi_recv_req1);
+    MPI_Irecv(&t1[local_rows_num+1],LM,MPI_CHAR,next_n,0,MPI_COMM_WORLD,&mpi_recv_req2);
+
+
+
+    MPI_Wait(&mpi_send_req1,MPI_STATUS_IGNORE);
+    MPI_Wait(&mpi_send_req2,MPI_STATUS_IGNORE);
+    MPI_Wait(&mpi_recv_req1,MPI_STATUS_IGNORE);
+    MPI_Wait(&mpi_recv_req2,MPI_STATUS_IGNORE);
+
+
+
+
+
+
+  char file[20];
   sprintf(file,"file.%d",rank);
   FILE *f = fopen(file, "w");
+  fprintf(f, "------------------ sauvegarde %d ------------------\n", rank);
 
-    fprintf(f, "------------------ sauvegarde %d ------------------\n", rank);
+    for(int x=0 ; x<LM ; x++)
+      fprintf(f, t1[0][x]?"*":"-");
+
+    fprintf(f, "\n==========================================\n");
     for(int x=1 ; x<=local_rows_num ; x++)
     {
       for(int y=0 ; y<LM ; y++)
-        fprintf(f, t1[x][y]?"*":" ");
+        fprintf(f, t1[x][y]?"*":"-");
       fprintf(f, "\n");
     }
+  fprintf(f, "==========================================\n");
+  for(int x=0 ; x<LM ; x++)
+    fprintf(f, t1[local_rows_num+1][x]?"*":"-");
   fclose(f);
 
-  free(send_count);
-  free(displacement);
-/*
 
+
+/*
   //gettimeofday( &tv_beg, NULL);
   for(int i=0 ; i<ITER ; i++)
   {
@@ -142,6 +167,9 @@ int main(int argc,char**argv)
   */
 
 
+
+  free(send_count);
+  free(displacement);
   MPI_Finalize();
   return( 0 );
 }
