@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
+#include <memory.h>
 
 #ifdef __linux__
 #include <openmpi-x86_64/mpi.h>
-#include <memory.h>
 
 #elif  __APPLE__
 #include <mpi.h>
@@ -45,49 +45,49 @@ int size,rank,local_rows_num,next_n,previous_n;
 int main(int argc,char**argv)
 {
  // struct timeval tv_init, tv_beg, tv_end, tv_save;
-
+    int* send_count;
+    int *displacement;
   MPI_Init(&argc,&argv);
   MPI_Comm_size(MPI_COMM_WORLD,&size);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   next_n = (rank == size-1)?0:rank+1;
   previous_n = (rank == 0)?size-1:rank-1;
-  int* send_count = NULL;
-  int *displacement = NULL;
+
   int reminder = HM%size;
   local_rows_num = HM/size;
   if(rank < reminder)
     local_rows_num += 1; //3,3,,3,2
 
+  send_count = malloc(sizeof(int)*size);
+  displacement = malloc(sizeof(int)*size);
 
+  int sum = 0;
+  for(int i=0;i<size;i++){
+      send_count[i] = HM/size;
+      if(reminder >0){
+          send_count[i]++;
+          reminder--;
+      }
+      send_count[i] *=LM;
+      displacement[i] = sum;
+      sum +=send_count[i];
+
+  }
+  if (0 == rank) {
+     for (int i = 0; i < size; i++) {
+        printf("send_count[%d] = %d\tdisplacement[%d] = %d\n", i, send_count[i], i, displacement[i]);
+     }
+  }
 
   //gettimeofday( &tv_init, NULL);
 
-  if(rank == 0){
+  if(rank == 0)
     init(t2);
-    /*
-    send_count = malloc(sizeof(int)*size);
-    displacement = malloc(sizeof(int)*size);
-    int sum = 0;
-    for (int i = 0; i < size ; ++i) {
-      int tmp = (HM/local_rows_num);
-      send_count[i] = (i != size-1) ? tmp :tmp+HM%size;
-        if(reminder >0){
-          send_count[i]++;
-          reminder--;
-        }
-      send_count[i] *=LM;
-      displacement[i] = sum;
-      sum += send_count[i];
-    }
-*/
-  }
-//  if(rank == size-1){
-//    memset(&t2[local_rows_num+1],0,LM);
-//  }
 
 
- // MPI_Scatterv(t1,send_count,displacement,MPI_CHAR,&t1,local_rows_num,MPI_CHAR,0,MPI_COMM_WORLD);
-  MPI_Scatter(t2,local_rows_num*LM,MPI_CHAR,&t1[1],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+
+  //MPI_Scatter(t2,local_rows_num*LM,MPI_CHAR,&t1[1],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+  MPI_Scatterv(&t2, send_count,displacement, MPI_CHAR,&t1[1],LM*HM-LM, MPI_CHAR, 0, MPI_COMM_WORLD);
 
 for(int i=0;i<ITER;i++){
 
@@ -95,11 +95,13 @@ for(int i=0;i<ITER;i++){
   if(i % SAUV == 0){
       if(rank == 0){
           printf("--------save(%d)-------\n",i);
-         MPI_Gather(&t1[1],local_rows_num*LM,MPI_CHAR,&tsauvegarde[i/SAUV],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+       //  MPI_Gather(&t1[1],local_rows_num*LM,MPI_CHAR,&tsauvegarde[i/SAUV],local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+         MPI_Gatherv(&t1[1],local_rows_num*LM,MPI_CHAR,&tsauvegarde[i/SAUV],send_count,displacement,MPI_CHAR,0,MPI_COMM_WORLD);
 
       }
       else
-          MPI_Gather(&t1[1],local_rows_num*LM,MPI_CHAR,NULL,local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+      //    MPI_Gather(&t1[1],local_rows_num*LM,MPI_CHAR,NULL,local_rows_num*LM,MPI_CHAR,0,MPI_COMM_WORLD);
+         MPI_Gatherv(&t1[1],local_rows_num*LM,MPI_CHAR,NULL,send_count,displacement,MPI_CHAR,0,MPI_COMM_WORLD);
 
 
   }
@@ -119,28 +121,7 @@ if(rank == 0){
   }
   fclose(f);
 }
-/*
-    char file[20];
-  sprintf(file,"file.%d",rank);
-  FILE *f = fopen(file, "w");
-  fprintf(f, "------------------ sauvegarde %d ------------------\n", rank);
 
-    for(int x=0 ; x<LM ; x++)
-      fprintf(f, t1[0][x]?"*":"-");
-
-    fprintf(f, "\n==========================================\n");
-    for(int x=1 ; x<=local_rows_num ; x++)
-    {
-      for(int y=0 ; y<LM ; y++)
-        fprintf(f, t1[x][y]?"*":"-");
-      fprintf(f, "\n");
-    }
-  fprintf(f, "==========================================\n");
-  for(int x=0 ; x<LM ; x++)
-    fprintf(f, t1[local_rows_num+1][x]?"*":"-");
-  fclose(f);
-
-  */
 
 /*
   //gettimeofday( &tv_beg, NULL);
